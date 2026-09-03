@@ -1,5 +1,7 @@
 # Flappy Joe 🦅
 
+https://ajdwilson.github.io/FlappyJoe/
+
 A web-based 3D bird flight simulator where you control **Joe the Eagle** using your body movements via your webcam. 
 
 Built with MediaPipe Pose for upper-body tracking and Three.js for 3D rendering.
