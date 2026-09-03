@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLAPPY JOE - Cartoon 3D Bird Flight Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: 'Luckiest Guy' for title & 'Fredoka' for cartoon text -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Luckiest+Guy&display=swap" rel="stylesheet">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- MediaPipe Pose & Camera Utilities -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #7dd3fc;
+            color: #0f172a;
+            overflow: hidden;
+        }
+        .font-cartoon {
+            font-family: 'Luckiest Guy', cursive;
+            letter-spacing: 0.05em;
+        }
+        .text-stroke-comic {
+            text-shadow: 
+                3px 3px 0 #1e293b,
+                -3px -3px 0 #1e293b,
+                3px -3px 0 #1e293b,
+                -3px 3px 0 #1e293b,
+                0 5px 0 #1e293b;
+        }
+        .text-stroke-sm {
+            text-shadow: 
+                2px 2px 0 #1e293b,
+                -2px -2px 0 #1e293b,
+                2px -2px 0 #1e293b,
+                -2px 2px 0 #1e293b;
+        }
+        .cartoon-card {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            border: 4px solid #1e293b;
+            box-shadow: 0 8px 0 #1e293b, 0 15px 30px rgba(0,0,0,0.15);
+            border-radius: 2rem;
+        }
+        .cartoon-pill {
+            background: rgba(255, 255, 255, 0.95);
+            border: 3px solid #1e293b;
+            box-shadow: 0 4px 0 #1e293b;
+            border-radius: 9999px;
+        }
+        .btn-yellow {
+            background: #facc15;
+            color: #1e293b;
+            border: 3.5px solid #1e293b;
+            box-shadow: 0 6px 0 #1e293b;
+            transition: all 0.12s ease-in-out;
+        }
+        .btn-yellow:hover {
+            background: #fde047;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #1e293b;
+        }
+        .btn-yellow:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #1e293b;
+        }
+        .btn-green {
+            background: #4ade80;
+            color: #1e293b;
+            border: 3.5px solid #1e293b;
+            box-shadow: 0 6px 0 #1e293b;
+            transition: all 0.12s ease-in-out;
+        }
+        .btn-green:hover {
+            background: #86efac;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #1e293b;
+        }
+        .btn-green:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #1e293b;
+        }
+        .btn-white {
+            background: #ffffff;
+            color: #1e293b;
+            border: 3px solid #1e293b;
+            box-shadow: 0 5px 0 #1e293b;
+            transition: all 0.12s ease-in-out;
+        }
+        .btn-white:hover {
+            background: #f8fafc;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #1e293b;
+        }
+        .btn-white:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #1e293b;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #facc15;
+            border: 2px solid #1e293b;
+            border-radius: 4px;
+        }
+        .pip-mirror {
+            transform: scaleX(-1);
+        }
+        .pip-normal {
+            transform: scaleX(1);
+        }
+        @keyframes bounce-gentle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-bounce-gentle {
+            animation: bounce-gentle 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden bg-sky-300">
+
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- MAIN MENU OVERLAY (Clean floating buttons, auto camera status badge) -->
+    <div id="main-menu-screen" class="absolute inset-0 z-40 flex flex-col justify-between p-6 md:p-12 pointer-events-none transition-opacity duration-500">
+        <div class="max-w-md w-full p-2 space-y-5 pointer-events-auto drop-shadow-xl my-auto sm:my-0">
+            <!-- Game Title -->
+            <div class="space-y-1 text-center sm:text-left">
+                <h1 class="font-cartoon text-6xl md:text-7xl text-amber-400 text-stroke-comic tracking-wider">
+                    FLAPPY JOE
+                </h1>
+            </div>
+
+            <!-- Start Screen Live Camera Status Badge -->
+            <div id="menu-cam-badge" class="p-3 rounded-2xl bg-white/95 backdrop-blur border-3 border-slate-800 shadow-[0_4px_0_#1e293b] flex items-center space-x-3 text-xs font-bold text-slate-800">
+                <span id="menu-cam-status-dot" class="w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-slate-800 animate-pulse"></span>
+                <div class="flex-1">
+                    <div class="text-[10px] uppercase text-slate-500 font-bold leading-tight">AI Pose Tracking</div>
+                    <div id="menu-cam-status-text" class="text-xs font-bold text-slate-800">Initializing Webcam...</div>
+                </div>
+                <button id="btn-menu-reinit-cam" class="text-[10px] px-2.5 py-1 rounded-xl bg-amber-200 hover:bg-amber-300 border-2 border-slate-800 font-cartoon text-slate-800 transition-colors shadow-[0_2px_0_#1e293b]">
+                    RESTART
+                </button>
+            </div>
+
+            <!-- Menu Action Buttons -->
+            <div class="space-y-3">
+                <button id="btn-menu-start-cam" class="w-full py-4 rounded-2xl btn-yellow font-cartoon text-xl tracking-wide flex items-center justify-center space-x-3">
+                    <i class="fa-solid fa-camera text-2xl"></i>
+                    <span>START FLIGHT (WEBCAM)</span>
+                </button>
+
+                <button id="btn-menu-start-key" class="w-full py-3 rounded-2xl btn-green font-cartoon text-base tracking-wide flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-keyboard text-lg"></i>
+                    <span>KEYBOARD / SIM MODE</span>
+                </button>
+
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <button id="btn-menu-calibration" class="py-3 rounded-2xl btn-white font-bold text-xs flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-sliders text-amber-500"></i>
+                        <span>CALIBRATION</span>
+                    </button>
+                    <button id="btn-menu-help" class="py-3 rounded-2xl btn-white font-bold text-xs flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-circle-question text-sky-500"></i>
+                        <span>HOW TO PLAY</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Turn Direction Quick Toggle -->
+            <div class="p-3.5 rounded-2xl bg-white/90 backdrop-blur border-3 border-slate-800 shadow-[0_4px_0_#1e293b] flex items-center justify-between text-xs font-bold">
+                <span class="text-slate-800 uppercase tracking-wider">TURN CONTROL:</span>
+                <button id="btn-menu-toggle-invert" class="px-3.5 py-1.5 rounded-xl bg-amber-200 border-2 border-slate-800 text-slate-800 font-cartoon text-sm hover:bg-amber-300 transition-colors shadow-[0_2px_0_#1e293b]">
+                    NORMAL
+                </button>
+            </div>
+        </div>
+
+        <!-- Start Screen Footer -->
+        <div class="pointer-events-auto text-center sm:text-left pt-4">
+            <a href="https://github.com/AJDWILSON" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-white/90 backdrop-blur border-3 border-slate-800 shadow-[0_4px_0_#1e293b] font-cartoon text-slate-800 hover:bg-amber-100 hover:scale-105 transition-all text-sm tracking-wide">
+                <i class="fa-brands fa-github text-lg text-slate-900"></i>
+                <span>Made by <span class="text-amber-500 underline decoration-amber-400 decoration-2">AJDWILSON</span> on github</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- TAKEOFF PROMPT OVERLAY -->
+    <div id="takeoff-prompt-overlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-500">
+        <div class="cartoon-card px-10 py-8 text-center space-y-3 animate-bounce-gentle transform -translate-y-12">
+            <div class="w-20 h-20 rounded-full bg-amber-300 border-4 border-slate-800 mx-auto flex items-center justify-center text-slate-800 text-4xl shadow-[0_6px_0_#1e293b]">
+                <i class="fa-solid fa-angles-up"></i>
+            </div>
+            <h2 class="font-cartoon text-3xl md:text-4xl text-amber-400 text-stroke-comic tracking-wide">
+                FLAP YOUR ARMS TO TAKE OFF!
+            </h2>
+            <p class="text-slate-800 font-bold text-xs uppercase tracking-wider bg-amber-200 px-5 py-2 rounded-full inline-block border-2 border-slate-800 shadow-[0_3px_0_#1e293b]">
+                OR PRESS [ SPACEBAR ] TO LAUNCH
+            </p>
+        </div>
+    </div>
+
+    <!-- GAMEPLAY HUD OVERLAY -->
+    <header id="flight-hud-header" class="absolute top-0 left-0 right-0 z-20 p-4 flex justify-between items-center pointer-events-none opacity-0 transition-opacity duration-500">
+        <!-- Telemetry Badges (Altitude & Rings Score only) -->
+        <div class="flex items-center space-x-3 pointer-events-auto">
+            <div class="cartoon-pill px-4 py-2 flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-400 border-2 border-slate-800 flex items-center justify-center text-slate-800 text-xs">
+                    <i class="fa-solid fa-mountain"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-500">Altitude</div>
+                    <div id="altitude-val" class="font-cartoon text-lg text-slate-800 leading-none">115 <span class="text-xs font-sans text-slate-500">m</span></div>
+                </div>
+            </div>
+
+            <div class="cartoon-pill px-4 py-2 flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-yellow-400 border-2 border-slate-800 flex items-center justify-center text-slate-800 text-xs">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-500">Rings</div>
+                    <div id="score-val" class="font-cartoon text-lg text-slate-800 leading-none">0 / 12</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Utility Action Buttons -->
+        <div class="flex items-center space-x-2 pointer-events-auto">
+            <button id="btn-hud-toggle-invert" title="Invert Left/Right Turn Controls" class="btn-white px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center space-x-2">
+                <i class="fa-solid fa-arrows-rotate text-amber-500"></i>
+                <span class="hidden sm:inline" id="hdr-invert-label">Turn: Normal</span>
+            </button>
+
+            <button id="btn-hud-calibrate" title="Calibrate neutral posture" class="btn-white px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center space-x-1.5">
+                <i class="fa-solid fa-crosshairs text-emerald-500"></i>
+                <span class="hidden sm:inline">Calibrate</span>
+            </button>
+
+            <button id="btn-hud-cam" class="btn-white p-2.5 rounded-2xl text-xs font-bold w-10 h-10 flex items-center justify-center">
+                <i class="fa-solid fa-video text-sky-500"></i>
+            </button>
+
+            <button id="btn-hud-audio" class="btn-white p-2.5 rounded-2xl text-xs font-bold w-10 h-10 flex items-center justify-center">
+                <i id="audio-icon" class="fa-solid fa-volume-high text-amber-500"></i>
+            </button>
+
+            <button id="btn-hud-settings" class="btn-white p-2.5 rounded-2xl text-xs font-bold w-10 h-10 flex items-center justify-center">
+                <i class="fa-solid fa-sliders text-slate-700"></i>
+            </button>
+
+            <button id="btn-hud-help" class="btn-white p-2.5 rounded-2xl text-xs font-bold w-10 h-10 flex items-center justify-center">
+                <i class="fa-solid fa-circle-question text-sky-500"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating PIP Webcam Overlay (Visible on start screen) -->
+    <div id="webcam-pip" class="absolute top-4 right-4 md:top-6 md:right-6 z-50 cartoon-card p-3 w-72 shadow-2xl transition-all duration-300 transform scale-100 origin-top-right">
+        <div class="flex justify-between items-center mb-2 px-1">
+            <div class="flex items-center space-x-2">
+                <span id="tracking-status-dot" class="w-3 h-3 rounded-full bg-amber-400 border border-slate-800 animate-pulse"></span>
+                <span id="tracking-status-text" class="text-xs font-bold text-slate-800">Initializing AI...</span>
+            </div>
+            <div class="flex items-center space-x-1">
+                <button id="btn-pip-calibrate" title="Calibrate neutral pose" class="text-[10px] px-2 py-1 rounded-lg bg-emerald-400 border border-slate-800 font-bold text-slate-800">CALIBRATE</button>
+                <button id="btn-sim-pose" title="Toggle Simulated Pose Mode" class="text-[10px] px-2 py-1 rounded-lg bg-slate-200 border border-slate-800 font-bold text-slate-800">SIM</button>
+                <button id="btn-close-pip" class="text-slate-500 hover:text-slate-800 p-1"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+        </div>
+
+        <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 border-2 border-slate-800">
+            <video id="webcam-video" class="absolute inset-0 w-full h-full object-cover pip-mirror opacity-60" playsinline muted></video>
+            <canvas id="skeleton-canvas" class="absolute inset-0 w-full h-full object-cover pip-mirror"></canvas>
+            <div id="cam-fallback-msg" class="absolute inset-0 flex flex-col items-center justify-center text-center p-3 bg-slate-900/90 text-xs text-slate-300 hidden">
+                <i class="fa-solid fa-camera text-amber-400 text-2xl mb-1"></i>
+                <p class="font-bold">Webcam offline / denied</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">Use Keyboard or SIM mode to fly Joe!</p>
+            </div>
+        </div>
+
+        <div class="mt-2.5 space-y-2 px-1 text-[11px] font-bold text-slate-800">
+            <div class="flex justify-between items-center">
+                <span>INVERT TURNING:</span>
+                <button id="pip-flip-btn" class="px-2.5 py-1 rounded-xl bg-amber-200 border-2 border-slate-800 text-slate-800 font-cartoon text-xs hover:bg-amber-300">
+                    FLIP (OFF)
+                </button>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <span>MIRROR CAMERA:</span>
+                <button id="pip-mirror-btn" class="px-2.5 py-1 rounded-xl bg-sky-200 border-2 border-slate-800 text-slate-800 font-cartoon text-xs hover:bg-sky-300">
+                    MIRROR (ON)
+                </button>
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[10px] mb-1">
+                    <span>ARM TILT (WING BANK)</span>
+                    <span id="pip-bank-angle" class="text-amber-600 font-bold">0° (LEVEL)</span>
+                </div>
+                <div class="w-full bg-slate-200 h-2 rounded-full relative border border-slate-800">
+                    <div id="pip-bank-indicator" class="absolute top-0 bottom-0 w-3 bg-amber-400 border border-slate-800 rounded-full transform -translate-x-1/2 left-1/2 transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[10px] pt-0.5">
+                <span>DIVE GESTURE (HANDS):</span>
+                <span id="pip-dive-status" class="text-sky-600 font-bold">CLEAR</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clean Gameplay Overlay -->
+    <div id="flight-hud-body" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-start p-6 opacity-0 transition-opacity duration-500">
+        <!-- Notification Toast -->
+        <div class="flex justify-center mt-16">
+            <div id="flight-toast" class="cartoon-pill px-6 py-2.5 text-sm font-bold text-slate-800 shadow-xl transition-all duration-300 opacity-0 transform -translate-y-4 flex items-center space-x-2">
+                <i id="toast-icon" class="fa-solid fa-wind text-amber-500"></i>
+                <span id="toast-text">Flap arms up/down to climb altitude!</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instruction / Help Modal -->
+    <div id="help-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sky-950/60 backdrop-blur-sm hidden">
+        <div class="cartoon-card max-w-2xl w-full p-8 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-amber-300 border-4 border-slate-800 text-slate-800 text-3xl shadow-[0_5px_0_#1e293b] mb-1">
+                    <i class="fa-solid fa-dove"></i>
+                </div>
+                <h2 class="font-cartoon text-4xl text-amber-400 text-stroke-comic">
+                    HOW TO FLY JOE!
+                </h2>
+                <p class="text-slate-700 font-bold text-sm max-w-md mx-auto">
+                    Control Joe using your upper-body webcam tracking or simple keyboard controls!
+                </p>
+            </div>
+
+            <!-- Gesture Matrix -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold text-slate-800">
+                <div class="p-4 rounded-2xl bg-amber-100 border-2 border-slate-800 text-center space-y-2 shadow-[0_4px_0_#1e293b]">
+                    <div class="text-3xl text-amber-500"><i class="fa-solid fa-hands"></i></div>
+                    <div class="font-cartoon text-base text-slate-800">1. Flap to Climb</div>
+                    <p class="text-slate-600 font-medium">Flap your arms up & down to climb altitude smoothly!</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-emerald-100 border-2 border-slate-800 text-center space-y-2 shadow-[0_4px_0_#1e293b]">
+                    <div class="text-3xl text-emerald-500"><i class="fa-solid fa-arrows-left-right"></i></div>
+                    <div class="font-cartoon text-base text-slate-800">2. Tilt Arms to Turn</div>
+                    <p class="text-slate-600 font-medium">Tilt arms like wings to turn left or right. Level arms fly straight!</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-sky-100 border-2 border-slate-800 text-center space-y-2 shadow-[0_4px_0_#1e293b]">
+                    <div class="text-3xl text-sky-500"><i class="fa-solid fa-hand-holding-hand"></i></div>
+                    <div class="font-cartoon text-base text-slate-800">3. Hands Together Dive</div>
+                    <p class="text-slate-600 font-medium">Bring both hands together in front of your chest to dive downward!</p>
+                </div>
+            </div>
+
+            <div class="flex justify-center pt-2">
+                <button id="btn-close-help" class="btn-yellow px-10 py-3 rounded-2xl font-cartoon text-lg">
+                    GOT IT!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Drawer -->
+    <div id="settings-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-sm cartoon-card rounded-none border-y-0 border-r-0 p-6 transform translate-x-full transition-transform duration-300 ease-out flex flex-col justify-between">
+        <div class="space-y-6 overflow-y-auto pr-1">
+            <div class="flex justify-between items-center border-b-2 border-slate-800 pb-4">
+                <h3 class="font-cartoon text-2xl text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-amber-500"></i> Flight Settings
+                </h3>
+                <button id="btn-close-settings" class="text-slate-500 hover:text-slate-800 text-xl font-bold"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="space-y-5 text-sm font-bold text-slate-800">
+                <button id="btn-settings-calibrate" class="w-full py-3.5 rounded-2xl btn-green text-xs font-bold tracking-wider flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-crosshairs"></i>
+                    <span>RE-CALIBRATE NEUTRAL POSE</span>
+                </button>
+
+                <div class="flex items-center justify-between p-3.5 rounded-2xl bg-amber-100 border-2 border-slate-800">
+                    <span>Invert Turn Controls</span>
+                    <button id="settings-flip-btn" class="px-3.5 py-1.5 rounded-xl bg-white border-2 border-slate-800 text-slate-800 font-cartoon text-xs">
+                        OFF
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between p-3.5 rounded-2xl bg-sky-100 border-2 border-slate-800">
+                    <span>Mirror Camera Video</span>
+                    <button id="settings-mirror-btn" class="px-3.5 py-1.5 rounded-xl bg-white border-2 border-slate-800 text-slate-800 font-cartoon text-xs">
+                        ON
+                    </button>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span>Flap Lift Sensitivity</span>
+                        <span id="val-flap-sens" class="text-amber-600 font-mono">1.8</span>
+                    </div>
+                    <input type="range" id="slider-flap-sens" min="0.5" max="3.5" step="0.1" value="1.8" class="w-full accent-amber-400 bg-slate-200 rounded-lg h-3 border border-slate-800">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span>Turn Sensitivity</span>
+                        <span id="val-turn-sens" class="text-amber-600 font-mono">1.6</span>
+                    </div>
+                    <input type="range" id="slider-turn-sens" min="0.5" max="3.0" step="0.1" value="1.6" class="w-full accent-amber-400 bg-slate-200 rounded-lg h-3 border border-slate-800">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span>Camera Distance</span>
+                        <span id="val-cam-dist" class="text-amber-600 font-mono">9.0</span>
+                    </div>
+                    <input type="range" id="slider-cam-dist" min="5.0" max="18.0" step="0.5" value="9.0" class="w-full accent-amber-400 bg-slate-200 rounded-lg h-3 border border-slate-800">
+                </div>
+
+                <div class="pt-2 border-t-2 border-slate-800">
+                    <button id="btn-reset-rings" class="w-full py-3 rounded-2xl btn-white text-xs font-bold flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-arrows-rotate text-amber-500"></i>
+                        <span>Respawn Flight Rings</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t-2 border-slate-800">
+            <button id="btn-save-settings" class="w-full py-3.5 rounded-2xl btn-yellow font-cartoon text-base">
+                CLOSE & APPLY
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * SoundEngine - Web Audio Synthesizer for bird flight sound effects
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.windGain = null;
+                this.windFilter = null;
+                this.isMuted = false;
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+
+                    const bufferSize = this.ctx.sampleRate * 2;
+                    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const output = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        output[i] = Math.random() * 2 - 1;
+                    }
+
+                    const whiteNoise = this.ctx.createBufferSource();
+                    whiteNoise.buffer = noiseBuffer;
+                    whiteNoise.loop = true;
+
+                    this.windFilter = this.ctx.createBiquadFilter();
+                    this.windFilter.type = 'bandpass';
+                    this.windFilter.frequency.setValueAtTime(220, this.ctx.currentTime);
+                    this.windFilter.Q.setValueAtTime(1.8, this.ctx.currentTime);
+
+                    this.windGain = this.ctx.createGain();
+                    this.windGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+
+                    whiteNoise.connect(this.windFilter);
+                    this.windFilter.connect(this.windGain);
+                    this.windGain.connect(this.ctx.destination);
+
+                    whiteNoise.start();
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn("Web Audio initialization error:", e);
+                }
+            }
+
+            updateWind(speedRatio, isDiving = false) {
+                if (!this.initialized || this.isMuted) return;
+                const baseFreq = isDiving ? 700 : 180;
+                const freq = baseFreq + speedRatio * 1100;
+                const volume = Math.min(0.35, (isDiving ? 0.12 : 0.03) + speedRatio * 0.25);
+                this.windFilter.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
+                this.windGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
+            }
+
+            playFlapSound(power = 1.0) {
+                if (!this.initialized || this.isMuted) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const filter = this.ctx.createBiquadFilter();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150 * power, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.28);
+
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(380, this.ctx.currentTime);
+
+                    gain.gain.setValueAtTime(0.32 * Math.min(power, 1.5), this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.28);
+
+                    osc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.29);
+                } catch (e) {}
+            }
+
+            playTakeoffSound() {
+                if (!this.initialized || this.isMuted) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(500, this.ctx.currentTime + 0.5);
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.5);
+                } catch (e) {}
+            }
+
+            playRingChime() {
+                if (!this.initialized || this.isMuted) return;
+                try {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.05);
+                        gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.05 + 0.45);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(this.ctx.currentTime + idx * 0.05);
+                        osc.stop(this.ctx.currentTime + idx * 0.05 + 0.46);
+                    });
+                } catch (e) {}
+            }
+
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                if (this.windGain && this.ctx) {
+                    this.windGain.gain.setValueAtTime(this.isMuted ? 0 : 0.04, this.ctx.currentTime);
+                }
+                return this.isMuted;
+            }
+        }
+
+        const sound = new SoundEngine();
+    </script>
+
+    <script>
+        const CONFIG = {
+            flapSensitivity: 1.8,
+            turnSensitivity: 1.6,
+            cameraDistance: 9.0,
+            baseDrag: 0.988,
+            gravity: 0.006,
+            cruiseSpeed: 0.45,
+            maxDiveSpeed: 1.25,
+            minSpeed: 0.15
+        };
+
+        // Game Stages: 'MENU', 'TRANSITION', 'WAIT_TAKEOFF', 'IN_FLIGHT'
+        const STATE = {
+            stage: 'MENU',
+            score: 0,
+            ringsCollected: 0,
+            totalRings: 12,
+            simMode: false,
+            webcamActive: false,
+            lastFlapTime: 0,
+            isMuted: false,
+
+            // Transition Interpolation
+            transitionProgress: 0.0,
+            camStartPos: new THREE.Vector3(),
+            camStartLookAt: new THREE.Vector3(),
+
+            // Controls Orientation State
+            invertTurning: false,
+            mirrorCamera: true,
+
+            // Neutral Pose Calibration
+            isCalibrated: false,
+            neutralPose: { shoulderAngle: 0.0 },
+
+            // Flight Mechanics Telemetry
+            airspeed: 0.45,
+            pitch: 0,
+            roll: 0,
+            yaw: 0,
+            targetPitch: 0,
+            targetRoll: 0,
+            isDiving: false,
+
+            // Procedural Wing Kinematics
+            flapImpulseEnergy: 0.0,
+            flapCycleProgress: 0.0,
+
+            // Raw landmark cache
+            lastRawLandmarks: null,
+
+            // Keyboard Fallback State
+            keys: { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, KeyW: false, KeyS: false, KeyA: false, KeyD: false, Space: false }
+        };
+
+        // Perch Tree & Joe Placement Coordinates
+        const PERCH_POS = new THREE.Vector3(16, 115.8, -10);
+        const HOME_TREE_POS = new THREE.Vector3(10, 85, -10);
+
+        // Three.js Core Global Objects
+        let scene, camera, renderer;
+        let birdGroup, leftWingPivot, leftForearmPivot, rightWingPivot, rightForearmPivot, tailMesh;
+        let ringObjects = [];
+        let windParticles, pollenParticles;
+    </script>
+
+    <script>
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x7dd3fc); // Sky Blue
+            scene.fog = new THREE.FogExp2(0xa5f3fc, 0.001);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+            
+            // Framing Main Menu View: Side angle clearly showcasing Joe sitting ON TOP of branch
+            camera.position.set(24, 117, -2);
+            camera.lookAt(PERCH_POS.x, PERCH_POS.y + 0.3, PERCH_POS.z);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.4);
+            sunLight.position.set(300, 500, 200);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 10;
+            sunLight.shadow.camera.far = 1200;
+            const d = 300;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            scene.add(sunLight);
+
+            createBirdModel();
+            createGrassyEnvironment();
+            createHomePerchTree();
+            spawnRingCourse();
+            createParticleEffects();
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function createBirdModel() {
+            birdGroup = new THREE.Group();
+
+            // Torso
+            const bodyGeo = new THREE.ConeGeometry(0.65, 2.6, 8);
+            bodyGeo.rotateX(Math.PI / 2);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x2563eb,
+                roughness: 0.3,
+                metalness: 0.1,
+                flatShading: true
+            });
+            const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+            bodyMesh.castShadow = true;
+            birdGroup.add(bodyMesh);
+
+            // Chest Accent
+            const chestGeo = new THREE.SphereGeometry(0.55, 8, 8);
+            const chestMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, flatShading: true });
+            const chestMesh = new THREE.Mesh(chestGeo, chestMat);
+            chestMesh.position.set(0, -0.1, 0.2);
+            chestMesh.scale.set(1, 0.6, 1.25);
+            birdGroup.add(chestMesh);
+
+            // Head & Eagle Beak
+            const headGeo = new THREE.SphereGeometry(0.42, 8, 8);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true });
+            const headMesh = new THREE.Mesh(headGeo, headMat);
+            headMesh.position.set(0, 0.22, -1.3);
+            birdGroup.add(headMesh);
+
+            const beakGeo = new THREE.ConeGeometry(0.18, 0.6, 6);
+            beakGeo.rotateX(-Math.PI / 2);
+            const beakMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, flatShading: true });
+            const beakMesh = new THREE.Mesh(beakGeo, beakMat);
+            beakMesh.position.set(0, 0.15, -1.78);
+            birdGroup.add(beakMesh);
+
+            // Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.09, 6, 6);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+            const eyeWhiteGeo = new THREE.SphereGeometry(0.14, 6, 6);
+            const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            const leftEyeWhite = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+            leftEyeWhite.position.set(0.26, 0.32, -1.4);
+            const leftEyePupil = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEyePupil.position.set(0.3, 0.33, -1.48);
+
+            const rightEyeWhite = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+            rightEyeWhite.position.set(-0.26, 0.32, -1.4);
+            const rightEyePupil = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEyePupil.position.set(-0.3, 0.33, -1.48);
+
+            birdGroup.add(leftEyeWhite);
+            birdGroup.add(leftEyePupil);
+            birdGroup.add(rightEyeWhite);
+            birdGroup.add(rightEyePupil);
+
+            // Tail Feathers
+            const tailGeo = new THREE.BoxGeometry(0.9, 0.05, 1.3);
+            tailGeo.translate(0, 0, 0.65);
+            const tailMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, flatShading: true });
+            tailMesh = new THREE.Mesh(tailGeo, tailMat);
+            tailMesh.position.set(0, 0.1, 1.1);
+            birdGroup.add(tailMesh);
+
+            // Feet / Talons
+            const footGeo = new THREE.BoxGeometry(0.2, 0.1, 0.3);
+            const footMat = new THREE.MeshStandardMaterial({ color: 0xd97706, flatShading: true });
+            const leftFoot = new THREE.Mesh(footGeo, footMat);
+            leftFoot.position.set(0.25, -0.45, -0.2);
+            const rightFoot = new THREE.Mesh(footGeo, footMat);
+            rightFoot.position.set(-0.25, -0.45, -0.2);
+            birdGroup.add(leftFoot);
+            birdGroup.add(rightFoot);
+
+            // Wing Material
+            const wingMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, flatShading: true, side: THREE.DoubleSide });
+
+            // LEFT WING PIVOT
+            leftWingPivot = new THREE.Group();
+            leftWingPivot.position.set(0.5, 0.1, -0.2);
+
+            const leftUpperGeo = new THREE.BoxGeometry(1.6, 0.08, 0.75);
+            leftUpperGeo.translate(0.8, 0, 0);
+            const leftUpperMesh = new THREE.Mesh(leftUpperGeo, wingMat);
+            leftUpperMesh.castShadow = true;
+            leftWingPivot.add(leftUpperMesh);
+
+            leftForearmPivot = new THREE.Group();
+            leftForearmPivot.position.set(1.6, 0, 0);
+
+            const leftOuterGeo = new THREE.BoxGeometry(1.9, 0.05, 0.95);
+            leftOuterGeo.translate(0.95, 0, 0.1);
+            const leftOuterMesh = new THREE.Mesh(leftOuterGeo, wingMat);
+            leftOuterMesh.castShadow = true;
+            leftForearmPivot.add(leftOuterMesh);
+
+            leftWingPivot.add(leftForearmPivot);
+            birdGroup.add(leftWingPivot);
+
+            // RIGHT WING PIVOT
+            rightWingPivot = new THREE.Group();
+            rightWingPivot.position.set(-0.5, 0.1, -0.2);
+
+            const rightUpperGeo = new THREE.BoxGeometry(1.6, 0.08, 0.75);
+            rightUpperGeo.translate(-0.8, 0, 0);
+            const rightUpperMesh = new THREE.Mesh(rightUpperGeo, wingMat);
+            rightUpperMesh.castShadow = true;
+            rightWingPivot.add(rightUpperMesh);
+
+            rightForearmPivot = new THREE.Group();
+            rightForearmPivot.position.set(-1.6, 0, 0);
+
+            const rightOuterGeo = new THREE.BoxGeometry(1.9, 0.05, 0.95);
+            rightOuterGeo.translate(-0.95, 0, 0.1);
+            const rightOuterMesh = new THREE.Mesh(rightOuterGeo, wingMat);
+            rightOuterMesh.castShadow = true;
+            rightForearmPivot.add(rightOuterMesh);
+
+            rightWingPivot.add(rightForearmPivot);
+            birdGroup.add(rightWingPivot);
+
+            // Initial Perched Position
+            birdGroup.position.copy(PERCH_POS);
+            scene.add(birdGroup);
+        }
+
+        function createHomePerchTree() {
+            const homeTreeGroup = new THREE.Group();
+            homeTreeGroup.position.copy(HOME_TREE_POS);
+
+            const barkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: true });
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.8, flatShading: true });
+
+            // Trunk
+            const trunkGeo = new THREE.CylinderGeometry(2.5, 4.2, 60, 8);
+            const trunkMesh = new THREE.Mesh(trunkGeo, barkMat);
+            trunkMesh.position.y = 30;
+            trunkMesh.castShadow = true;
+            homeTreeGroup.add(trunkMesh);
+
+            // Branch where Joe sits
+            const perchBranchGeo = new THREE.CylinderGeometry(0.7, 0.9, 12, 8);
+            perchBranchGeo.rotateZ(-Math.PI / 2);
+            const perchBranchMesh = new THREE.Mesh(perchBranchGeo, barkMat);
+            perchBranchMesh.position.set(6, 29.5, 0);
+            perchBranchMesh.castShadow = true;
+            homeTreeGroup.add(perchBranchMesh);
+
+            // Foliage Canopy
+            const foliageCoords = [
+                [0, 62, 0, 16],
+                [-4, 68, 3, 13],
+                [5, 66, -4, 14],
+                [0, 74, 0, 11]
+            ];
+            foliageCoords.forEach(([fx, fy, fz, fr]) => {
+                const canopyGeo = new THREE.DodecahedronGeometry(fr, 1);
+                const canopy = new THREE.Mesh(canopyGeo, leafMat);
+                canopy.position.set(fx, fy, fz);
+                canopy.castShadow = true;
+                homeTreeGroup.add(canopy);
+            });
+
+            scene.add(homeTreeGroup);
+        }
+
+        function createGrassyEnvironment() {
+            const terrainGeo = new THREE.PlaneGeometry(4000, 4000, 100, 100);
+            terrainGeo.rotateX(-Math.PI / 2);
+
+            const posAttr = terrainGeo.attributes.position;
+            const colors = [];
+
+            const cBase = new THREE.Color(0x4ade80);
+            const cHill = new THREE.Color(0x16a34a);
+            const cMeadow = new THREE.Color(0x86efac);
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const x = posAttr.getX(i);
+                const z = posAttr.getZ(i);
+
+                const y = Math.sin(x * 0.003) * Math.cos(z * 0.003) * 110 +
+                          Math.sin(x * 0.012) * Math.sin(z * 0.012) * 35 +
+                          Math.cos(x * 0.03) * Math.cos(z * 0.03) * 8;
+                posAttr.setY(i, y - 50);
+
+                const blend = Math.min(1, Math.max(0, (y + 20) / 100));
+                const vCol = cBase.clone().lerp(blend > 0.5 ? cMeadow : cHill, Math.abs(blend - 0.5) * 2);
+                colors.push(vCol.r, vCol.g, vCol.b);
+            }
+
+            terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            terrainGeo.computeVertexNormals();
+
+            const terrainMat = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.9,
+                metalness: 0.05,
+                flatShading: true
+            });
+
+            const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.receiveShadow = true;
+            scene.add(terrainMesh);
+
+            // Trees
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9, flatShading: true });
+            const pineFoliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8, flatShading: true });
+            const decFoliageMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.7, flatShading: true });
+
+            const pineConeGeo = new THREE.ConeGeometry(8, 18, 6);
+            const decSphereGeo = new THREE.DodecahedronGeometry(10, 1);
+            const trunkGeo = new THREE.CylinderGeometry(1.2, 1.8, 10, 6);
+
+            for (let i = 0; i < 350; i++) {
+                const treeGroup = new THREE.Group();
+                const rx = (Math.random() - 0.5) * 3200;
+                const rz = (Math.random() - 0.5) * 3200;
+
+                if (Math.abs(rx - PERCH_POS.x) < 80 && Math.abs(rz - PERCH_POS.z) < 120) continue;
+
+                const ry = Math.sin(rx * 0.003) * Math.cos(rz * 0.003) * 110 +
+                           Math.sin(rx * 0.012) * Math.sin(rz * 0.012) * 35 - 50;
+
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = 5;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+
+                if (Math.random() > 0.4) {
+                    for (let layer = 0; layer < 3; layer++) {
+                        const cone = new THREE.Mesh(pineConeGeo, pineFoliageMat);
+                        cone.position.y = 12 + (layer * 7);
+                        cone.scale.set(1 - layer * 0.22, 1 - layer * 0.2, 1 - layer * 0.22);
+                        cone.castShadow = true;
+                        treeGroup.add(cone);
+                    }
+                } else {
+                    const canopy = new THREE.Mesh(decSphereGeo, decFoliageMat);
+                    canopy.position.y = 16;
+                    canopy.scale.set(1 + Math.random() * 0.3, 1, 1 + Math.random() * 0.3);
+                    canopy.castShadow = true;
+                    treeGroup.add(canopy);
+                }
+
+                const s = 0.8 + Math.random() * 0.8;
+                treeGroup.scale.set(s, s, s);
+                treeGroup.position.set(rx, ry, rz);
+                scene.add(treeGroup);
+            }
+
+            // Clouds
+            const cloudMat = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 1.0,
+                flatShading: true,
+                transparent: true,
+                opacity: 0.9
+            });
+
+            for (let i = 0; i < 40; i++) {
+                const cloudGroup = new THREE.Group();
+                const puffCount = 5 + Math.floor(Math.random() * 5);
+
+                for (let p = 0; p < puffCount; p++) {
+                    const puffGeo = new THREE.DodecahedronGeometry(25 + Math.random() * 20, 1);
+                    const puff = new THREE.Mesh(puffGeo, cloudMat);
+                    puff.position.set(
+                        (p - puffCount / 2) * 22,
+                        (Math.random() - 0.5) * 12,
+                        (Math.random() - 0.5) * 20
+                    );
+                    cloudGroup.add(puff);
+                }
+
+                cloudGroup.position.set(
+                    (Math.random() - 0.5) * 3500,
+                    220 + Math.random() * 180,
+                    (Math.random() - 0.5) * 3500
+                );
+                scene.add(cloudGroup);
+            }
+        }
+
+        function spawnRingCourse() {
+            ringObjects.forEach(r => scene.remove(r.mesh));
+            ringObjects = [];
+
+            const ringGeo = new THREE.TorusGeometry(9, 0.9, 12, 28);
+            let lastPos = new THREE.Vector3(16, 120, -100);
+
+            for (let i = 0; i < STATE.totalRings; i++) {
+                const ringMat = new THREE.MeshStandardMaterial({
+                    color: 0xfacc15,
+                    emissive: 0xeab308,
+                    emissiveIntensity: 0.7,
+                    roughness: 0.2,
+                    metalness: 0.8
+                });
+                const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+
+                const nextX = lastPos.x + (Math.sin(i * 0.75) * 160);
+                const nextY = Math.max(45, lastPos.y + (Math.cos(i * 1.1) * 45));
+                const nextZ = lastPos.z - 180 - (Math.random() * 40);
+
+                ringMesh.position.set(nextX, nextY, nextZ);
+                ringMesh.rotation.y = Math.sin(i) * 0.4;
+                scene.add(ringMesh);
+
+                ringObjects.push({
+                    mesh: ringMesh,
+                    collected: false,
+                    position: ringMesh.position.clone()
+                });
+
+                lastPos.set(nextX, nextY, nextZ);
+            }
+            updateRingHUD();
+        }
+
+        function createParticleEffects() {
+            const particleCount = 450;
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 180;
+                positions[i + 1] = (Math.random() - 0.5) * 120;
+                positions[i + 2] = (Math.random() - 0.5) * 250;
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.75,
+                transparent: true,
+                opacity: 0.45
+            });
+            windParticles = new THREE.Points(geo, mat);
+            scene.add(windParticles);
+
+            const pollenGeo = new THREE.BufferGeometry();
+            const pollenPos = new Float32Array(100 * 3);
+            for (let i = 0; i < 100 * 3; i += 3) {
+                pollenPos[i] = PERCH_POS.x + (Math.random() - 0.5) * 30;
+                pollenPos[i + 1] = PERCH_POS.y + (Math.random() - 0.5) * 20;
+                pollenPos[i + 2] = PERCH_POS.z + (Math.random() - 0.5) * 30;
+            }
+            pollenGeo.setAttribute('position', new THREE.BufferAttribute(pollenPos, 3));
+            const pollenMat = new THREE.PointsMaterial({
+                color: 0xfef08a,
+                size: 0.6,
+                transparent: true,
+                opacity: 0.7
+            });
+            pollenParticles = new THREE.Points(pollenGeo, pollenMat);
+            scene.add(pollenParticles);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+
+    <script>
+        let poseTracker = null;
+        let cameraUtils = null;
+        const videoElement = document.getElementById('webcam-video');
+        const skeletonCanvas = document.getElementById('skeleton-canvas');
+        const canvasCtx = skeletonCanvas.getContext('2d');
+
+        let prevLeftArmY = null;
+        let prevRightArmY = null;
+
+        function updateCamStatusUI(statusText, isLive = false, isError = false) {
+            const pipDot = document.getElementById('tracking-status-dot');
+            const pipText = document.getElementById('tracking-status-text');
+            const menuDot = document.getElementById('menu-cam-status-dot');
+            const menuText = document.getElementById('menu-cam-status-text');
+
+            if (pipText) pipText.innerText = statusText;
+            if (menuText) menuText.innerText = statusText;
+
+            const dotClass = isLive 
+                ? "w-3 h-3 rounded-full bg-emerald-400 border border-slate-800" 
+                : isError 
+                    ? "w-3 h-3 rounded-full bg-rose-500 border border-slate-800" 
+                    : "w-3 h-3 rounded-full bg-amber-400 border border-slate-800 animate-pulse";
+
+            if (pipDot) pipDot.className = dotClass;
+            if (menuDot) menuDot.className = dotClass.replace('w-3 h-3', 'w-3.5 h-3.5').replace('border ', 'border-2 ');
+        }
+
+        function initMediaPipePose() {
+            if (typeof Pose === 'undefined') {
+                updateCamStatusUI("Keyboard Mode Active", false, true);
+                document.getElementById('cam-fallback-msg').classList.remove('hidden');
+                return;
+            }
+
+            updateCamStatusUI("Connecting Camera...", false, false);
+
+            try {
+                if (cameraUtils) {
+                    try { cameraUtils.stop(); } catch(e){}
+                }
+
+                poseTracker = new Pose({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+                });
+
+                poseTracker.setOptions({
+                    modelComplexity: 1,
+                    smoothLandmarks: true,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                poseTracker.onResults(onPoseResults);
+
+                cameraUtils = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (poseTracker && videoElement) {
+                            await poseTracker.send({ image: videoElement });
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+
+                cameraUtils.start().then(() => {
+                    STATE.webcamActive = true;
+                    document.getElementById('cam-fallback-msg').classList.add('hidden');
+                    updateCamStatusUI("Camera Active & Tracking", true, false);
+                }).catch(err => {
+                    console.warn("Webcam auto-init denied/failed:", err);
+                    document.getElementById('cam-fallback-msg').classList.remove('hidden');
+                    updateCamStatusUI("Webcam Offline / Denied", false, true);
+                });
+            } catch (err) {
+                console.error("MediaPipe auto-init error:", err);
+                updateCamStatusUI("Tracking Unavailable", false, true);
+            }
+        }
+
+        function onPoseResults(results) {
+            skeletonCanvas.width = videoElement.videoWidth || 320;
+            skeletonCanvas.height = videoElement.videoHeight || 240;
+
+            canvasCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+
+            if (!results.poseLandmarks) {
+                updateCamStatusUI("Searching Body...", false, false);
+                return;
+            }
+
+            updateCamStatusUI("Body Tracked Live", true, false);
+
+            const lm = results.poseLandmarks;
+            STATE.lastRawLandmarks = lm;
+
+            drawSkeleton(lm);
+
+            const lShoulder = lm[11];
+            const rShoulder = lm[12];
+            const lWrist = lm[15];
+            const rWrist = lm[16];
+
+            if (lShoulder && rShoulder && lWrist && rWrist) {
+                if (!STATE.isCalibrated) {
+                    calibrateNeutralPose();
+                }
+
+                // Hands-Together Dive Gesture
+                const wristDist = Math.hypot(lWrist.x - rWrist.x, lWrist.y - rWrist.y);
+                const shoulderWidth = Math.hypot(lShoulder.x - rShoulder.x, lShoulder.y - rShoulder.y);
+                const normalizedHandDist = wristDist / Math.max(0.001, shoulderWidth);
+
+                if (normalizedHandDist < 0.55 && lWrist.y > lShoulder.y && rWrist.y > rShoulder.y) {
+                    STATE.isDiving = true;
+                    document.getElementById('pip-dive-status').innerText = "DIVING FAST! 🔥";
+                    document.getElementById('pip-dive-status').className = "text-amber-600 font-bold animate-pulse";
+                } else {
+                    STATE.isDiving = false;
+                    document.getElementById('pip-dive-status').innerText = "CLEAR";
+                    document.getElementById('pip-dive-status').className = "text-sky-600 font-bold";
+                }
+
+                // Arm Tilt Turning Logic
+                let armSlope = (lWrist.y - rWrist.y);
+                if (STATE.invertTurning) {
+                    armSlope = -armSlope;
+                }
+
+                const DEADZONE = 0.035;
+
+                if (Math.abs(armSlope) < DEADZONE) {
+                    STATE.targetRoll = 0;
+                    document.getElementById('pip-bank-angle').innerText = "0° (LEVEL - STRAIGHT)";
+                    document.getElementById('pip-bank-indicator').style.left = "50%";
+                } else {
+                    const activeSlope = (Math.abs(armSlope) - DEADZONE) * Math.sign(armSlope);
+                    STATE.targetRoll = -activeSlope * CONFIG.turnSensitivity * 3.5;
+                    STATE.targetRoll = Math.max(-0.85, Math.min(0.85, STATE.targetRoll));
+
+                    const bankDeg = Math.round(STATE.targetRoll * (180 / Math.PI));
+                    const turnDirText = bankDeg < 0 ? 'RIGHT' : 'LEFT';
+                    document.getElementById('pip-bank-angle').innerText = `${Math.abs(bankDeg)}° (${turnDirText})`;
+                    const offset = Math.max(10, Math.min(90, 50 - (bankDeg * 1.2)));
+                    document.getElementById('pip-bank-indicator').style.left = `${offset}%`;
+                }
+
+                // Flap Gesture Impulse
+                if (prevLeftArmY !== null && prevRightArmY !== null) {
+                    const dLeft = lWrist.y - prevLeftArmY;
+                    const dRight = rWrist.y - prevRightArmY;
+                    const avgVelocity = (dLeft + dRight) / 2;
+
+                    if (avgVelocity > 0.025 && (Date.now() - STATE.lastFlapTime > 260)) {
+                        const flapPower = Math.min(2.5, avgVelocity * 22 * CONFIG.flapSensitivity);
+                        triggerFlapGesture(flapPower);
+                        STATE.lastFlapTime = Date.now();
+                    }
+                }
+
+                prevLeftArmY = lWrist.y;
+                prevRightArmY = rWrist.y;
+            }
+        }
+
+        function calibrateNeutralPose() {
+            if (STATE.lastRawLandmarks) {
+                const lm = STATE.lastRawLandmarks;
+                const lShoulder = lm[11];
+                const rShoulder = lm[12];
+                if (lShoulder && rShoulder) {
+                    const dx = rShoulder.x - lShoulder.x;
+                    const dy = rShoulder.y - lShoulder.y;
+                    STATE.neutralPose.shoulderAngle = Math.atan2(dy, dx);
+                    STATE.isCalibrated = true;
+                    showToast("🎯 Neutral Pose Calibrated!", 3000);
+                }
+            }
+        }
+
+        function drawSkeleton(landmarks) {
+            const w = skeletonCanvas.width;
+            const h = skeletonCanvas.height;
+
+            const connections = [
+                [11, 12], [11, 13], [13, 15],
+                [12, 14], [14, 16], [11, 23], [12, 24]
+            ];
+
+            canvasCtx.strokeStyle = '#22c55e';
+            canvasCtx.lineWidth = 3.5;
+
+            connections.forEach(([i, j]) => {
+                if (landmarks[i] && landmarks[j]) {
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(landmarks[i].x * w, landmarks[i].y * h);
+                    canvasCtx.lineTo(landmarks[j].x * w, landmarks[j].y * h);
+                    canvasCtx.stroke();
+                }
+            });
+
+            [0, 11, 12, 13, 14, 15, 16].forEach(idx => {
+                if (landmarks[idx]) {
+                    canvasCtx.fillStyle = (idx === 15 || idx === 16) ? '#f59e0b' : '#38bdf8';
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(landmarks[idx].x * w, landmarks[idx].y * h, 5, 0, Math.PI * 2);
+                    canvasCtx.fill();
+                }
+            });
+        }
+
+        function triggerFlapGesture(power = 1.0) {
+            if (STATE.stage === 'WAIT_TAKEOFF') {
+                launchTakeoff();
+                return;
+            }
+
+            if (STATE.stage === 'IN_FLIGHT') {
+                birdGroup.position.y += 3.2 * power;
+                STATE.flapImpulseEnergy = Math.min(2.0, STATE.flapImpulseEnergy + power);
+                sound.playFlapSound(power);
+            }
+        }
+
+        function toggleInvertTurning() {
+            STATE.invertTurning = !STATE.invertTurning;
+            const textShort = STATE.invertTurning ? "Inverted" : "Normal";
+
+            document.getElementById('hdr-invert-label').innerText = `Turn: ${textShort}`;
+            document.getElementById('pip-flip-btn').innerText = `FLIP (${STATE.invertTurning ? 'ON' : 'OFF'})`;
+            document.getElementById('settings-flip-btn').innerText = STATE.invertTurning ? 'ON' : 'OFF';
+            document.getElementById('btn-menu-toggle-invert').innerText = textShort.toUpperCase();
+
+            showToast(`Turn Controls: ${textShort.toUpperCase()}`, 2000);
+        }
+
+        function toggleMirrorCamera() {
+            STATE.mirrorCamera = !STATE.mirrorCamera;
+            const video = document.getElementById('webcam-video');
+            const canvas = document.getElementById('skeleton-canvas');
+
+            if (STATE.mirrorCamera) {
+                video.className = "absolute inset-0 w-full h-full object-cover pip-mirror opacity-60";
+                canvas.className = "absolute inset-0 w-full h-full object-cover pip-mirror";
+            } else {
+                video.className = "absolute inset-0 w-full h-full object-cover pip-normal opacity-60";
+                canvas.className = "absolute inset-0 w-full h-full object-cover pip-normal";
+            }
+
+            document.getElementById('pip-mirror-btn').innerText = `MIRROR (${STATE.mirrorCamera ? 'ON' : 'OFF'})`;
+            document.getElementById('settings-mirror-btn').innerText = STATE.mirrorCamera ? 'ON' : 'OFF';
+            showToast(`Camera Mirror: ${STATE.mirrorCamera ? 'ON' : 'OFF'}`, 2000);
+        }
+    </script>
+
+    <script>
+        let clock = new THREE.Clock();
+
+        function startFlightFromMenu() {
+            sound.init();
+
+            // Fade out Main Menu UI
+            const menuUI = document.getElementById('main-menu-screen');
+            menuUI.classList.add('opacity-0', 'pointer-events-none');
+
+            // Record Camera Start Position & Target LookAt for interpolation
+            STATE.camStartPos.copy(camera.position);
+            STATE.camStartLookAt.set(PERCH_POS.x, PERCH_POS.y + 0.3, PERCH_POS.z);
+
+            STATE.stage = 'TRANSITION';
+            STATE.transitionProgress = 0.0;
+        }
+
+        function launchTakeoff() {
+            STATE.stage = 'IN_FLIGHT';
+
+            // Hide Takeoff prompt overlay
+            const prompt = document.getElementById('takeoff-prompt-overlay');
+            prompt.classList.add('opacity-0');
+
+            // Reveal Flight HUD Overlay
+            document.getElementById('flight-hud-header').classList.remove('opacity-0');
+            document.getElementById('flight-hud-body').classList.remove('opacity-0');
+
+            // Sound woosh & initial wing launch flap impulse
+            sound.playTakeoffSound();
+            sound.playFlapSound(1.8);
+            STATE.flapImpulseEnergy = 2.0;
+
+            showToast("TAKEOFF! Keep arms level to fly straight!", 3500);
+        }
+
+        function updateGameLoop() {
+            const dt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            // -------------------------------------------------------------
+            // STAGE 1: MAIN MENU (Joe sits perched ON top of branch)
+            // -------------------------------------------------------------
+            if (STATE.stage === 'MENU') {
+                birdGroup.position.y = PERCH_POS.y + Math.sin(time * 2.5) * 0.06;
+                birdGroup.rotation.y = Math.sin(time * 0.5) * 0.12;
+                birdGroup.rotation.z = 0;
+
+                if (leftWingPivot && rightWingPivot) {
+                    leftWingPivot.rotation.z = 0.35 + Math.sin(time * 2.5) * 0.04;
+                    rightWingPivot.rotation.z = -0.35 - Math.sin(time * 2.5) * 0.04;
+                }
+
+                // Cinematic camera orbit around perched Joe
+                camera.position.x = 24 + Math.sin(time * 0.4) * 1.5;
+                camera.position.y = 117 + Math.cos(time * 0.3) * 0.8;
+                camera.lookAt(PERCH_POS.x, PERCH_POS.y + 0.3, PERCH_POS.z);
+            }
+
+            // -------------------------------------------------------------
+            // STAGE 2: CAMERA TRANSITION (Arc smoothly behind Joe)
+            // -------------------------------------------------------------
+            else if (STATE.stage === 'TRANSITION') {
+                STATE.transitionProgress += dt * 0.65;
+                const t = Math.min(1.0, STATE.transitionProgress);
+                const smoothT = t * t * (3 - 2 * t);
+
+                const targetCamPos = new THREE.Vector3(PERCH_POS.x, PERCH_POS.y + 3.8, PERCH_POS.z + CONFIG.cameraDistance);
+                camera.position.lerpVectors(STATE.camStartPos, targetCamPos, smoothT);
+
+                const targetLookAt = new THREE.Vector3(PERCH_POS.x, PERCH_POS.y + 1.2, PERCH_POS.z - 10);
+                const currentLookAt = new THREE.Vector3().lerpVectors(STATE.camStartLookAt, targetLookAt, smoothT);
+                camera.lookAt(currentLookAt);
+
+                if (t >= 1.0) {
+                    STATE.stage = 'WAIT_TAKEOFF';
+                    document.getElementById('takeoff-prompt-overlay').classList.remove('opacity-0');
+                }
+            }
+
+            // -------------------------------------------------------------
+            // STAGE 3: WAITING TAKEOFF
+            // -------------------------------------------------------------
+            else if (STATE.stage === 'WAIT_TAKEOFF') {
+                birdGroup.position.y = PERCH_POS.y + Math.sin(time * 3.5) * 0.08;
+                if (leftWingPivot && rightWingPivot) {
+                    leftWingPivot.rotation.z = 0.5 + Math.sin(time * 5.0) * 0.15;
+                    rightWingPivot.rotation.z = -0.5 - Math.sin(time * 5.0) * 0.15;
+                }
+            }
+
+            // -------------------------------------------------------------
+            // STAGE 4: FREE-ROAM FLIGHT PHYSICS
+            // -------------------------------------------------------------
+            else if (STATE.stage === 'IN_FLIGHT') {
+                // Keyboard Controls
+                if (STATE.keys.KeyA || STATE.keys.ArrowLeft) STATE.targetRoll = STATE.invertTurning ? -0.65 : 0.65;
+                else if (STATE.keys.KeyD || STATE.keys.ArrowRight) STATE.targetRoll = STATE.invertTurning ? 0.65 : -0.65;
+                else if (!STATE.webcamActive && !STATE.simMode) STATE.targetRoll = 0;
+
+                // SIM Mode
+                if (STATE.simMode) {
+                    const simTime = Date.now() * 0.0025;
+                    STATE.targetRoll = Math.sin(simTime * 0.6) * 0.45;
+                    if (Math.sin(simTime * 3.5) > 0.93 && (Date.now() - STATE.lastFlapTime > 300)) {
+                        triggerFlapGesture(1.2);
+                        STATE.lastFlapTime = Date.now();
+                    }
+                }
+
+                STATE.roll = THREE.MathUtils.lerp(STATE.roll, STATE.targetRoll, 0.12);
+
+                if (Math.abs(STATE.roll) > 0.01) {
+                    STATE.yaw += STATE.roll * 0.022 * (dt * 60);
+                }
+
+                if (STATE.isDiving) {
+                    STATE.targetPitch = -0.65;
+                    STATE.airspeed = THREE.MathUtils.lerp(STATE.airspeed, CONFIG.maxDiveSpeed, 0.08);
+                } else {
+                    STATE.targetPitch = 0.0;
+                    STATE.airspeed = THREE.MathUtils.lerp(STATE.airspeed, CONFIG.cruiseSpeed, 0.05);
+                }
+
+                STATE.pitch = THREE.MathUtils.lerp(STATE.pitch, STATE.targetPitch, 0.1);
+
+                // Forward Motion
+                const forwardDir = new THREE.Vector3(0, 0, -1);
+                const rotationMatrix = new THREE.Matrix4();
+                rotationMatrix.makeRotationFromEuler(new THREE.Euler(STATE.pitch, STATE.yaw, STATE.roll, 'YXZ'));
+                forwardDir.applyMatrix4(rotationMatrix);
+
+                const moveStep = forwardDir.clone().multiplyScalar(STATE.airspeed * 70 * dt);
+                birdGroup.position.add(moveStep);
+
+                // Sink Gravity
+                birdGroup.position.y -= CONFIG.gravity * 60 * dt;
+                if (birdGroup.position.y < 12) birdGroup.position.y = 12;
+
+                birdGroup.rotation.x = THREE.MathUtils.lerp(birdGroup.rotation.x, STATE.pitch, 0.15);
+                birdGroup.rotation.y = THREE.MathUtils.lerp(birdGroup.rotation.y, STATE.yaw, 0.15);
+                birdGroup.rotation.z = THREE.MathUtils.lerp(birdGroup.rotation.z, STATE.roll, 0.15);
+
+                // Procedural Wing Flapping Kinematics
+                STATE.flapImpulseEnergy = Math.max(0, STATE.flapImpulseEnergy - dt * 2.5);
+                STATE.flapCycleProgress += dt * (4.0 + STATE.flapImpulseEnergy * 12.0);
+
+                const idleWingAngle = Math.sin(STATE.flapCycleProgress) * (0.08 + STATE.flapImpulseEnergy * 0.6);
+                const flapStrokeAngle = Math.sin(STATE.flapCycleProgress * 1.5) * STATE.flapImpulseEnergy * 0.75;
+                const finalWingAngle = idleWingAngle + flapStrokeAngle;
+
+                if (leftWingPivot && rightWingPivot) {
+                    leftWingPivot.rotation.z = finalWingAngle;
+                    rightWingPivot.rotation.z = -finalWingAngle;
+                    if (leftForearmPivot && rightForearmPivot) {
+                        leftForearmPivot.rotation.z = finalWingAngle * 0.35;
+                        rightForearmPivot.rotation.z = -finalWingAngle * 0.35;
+                    }
+                }
+
+                // Smooth Non-Bouncing Damped Camera Follow
+                const cameraOffset = new THREE.Vector3(0, 3.8 + (STATE.airspeed * 1.2), CONFIG.cameraDistance);
+                cameraOffset.applyMatrix4(rotationMatrix);
+                const targetCamPos = birdGroup.position.clone().add(cameraOffset);
+
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.x, 0.08);
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamPos.z, 0.08);
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.y, 0.035);
+
+                camera.lookAt(birdGroup.position.clone().add(forwardDir.clone().multiplyScalar(10)));
+
+                sound.updateWind(STATE.airspeed / CONFIG.maxDiveSpeed, STATE.isDiving);
+
+                if (windParticles) {
+                    windParticles.position.copy(birdGroup.position);
+                    windParticles.rotation.y = STATE.yaw;
+                }
+
+                checkRingCollisions();
+                updateTelemetryHUD();
+            }
+        }
+
+        function checkRingCollisions() {
+            const birdPos = birdGroup.position;
+
+            ringObjects.forEach((ring) => {
+                if (!ring.collected) {
+                    const dist = birdPos.distanceTo(ring.position);
+                    ring.mesh.rotation.z += 0.02;
+
+                    if (dist < 14) {
+                        ring.collected = true;
+                        ring.mesh.material.emissive.setHex(0x10b981);
+                        ring.mesh.scale.set(1.4, 1.4, 1.4);
+
+                        STATE.score += 1;
+                        STATE.ringsCollected += 1;
+
+                        sound.playRingChime();
+                        showToast(`✨ RING COLLECTED! (${STATE.ringsCollected}/${STATE.totalRings})`, 2500);
+                        updateRingHUD();
+                    }
+                }
+            });
+        }
+
+        function updateTelemetryHUD() {
+            const altMeters = Math.round(birdGroup.position.y);
+            const altEl = document.getElementById('altitude-val');
+            if (altEl) altEl.innerHTML = `${altMeters} <span class="text-xs font-sans text-slate-500">m</span>`;
+            
+            const scoreEl = document.getElementById('score-val');
+            if (scoreEl) scoreEl.innerText = `${STATE.ringsCollected} / ${STATE.totalRings}`;
+        }
+
+        function updateRingHUD() {
+            const el = document.getElementById('score-val');
+            if (el) el.innerText = `${STATE.ringsCollected} / ${STATE.totalRings}`;
+        }
+
+        function showToast(msg, duration = 2500) {
+            const toast = document.getElementById('flight-toast');
+            if (!toast) return;
+            document.getElementById('toast-text').innerText = msg;
+            toast.classList.remove('opacity-0', '-translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(toast.timer);
+            toast.timer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-4');
+            }, duration);
+        }
+    </script>
+
+    <script>
+        function setupEventListeners() {
+            // Main Menu Buttons
+            document.getElementById('btn-menu-start-cam').addEventListener('click', () => {
+                startFlightFromMenu();
+            });
+
+            document.getElementById('btn-menu-start-key').addEventListener('click', () => {
+                startFlightFromMenu();
+                showToast("Keyboard / SIM Mode: WASD/Arrows to turn, Spacebar to flap!", 4000);
+            });
+
+            document.getElementById('btn-menu-calibration').addEventListener('click', () => {
+                document.getElementById('settings-drawer').classList.remove('translate-x-full');
+            });
+
+            document.getElementById('btn-menu-help').addEventListener('click', () => {
+                document.getElementById('help-modal').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-menu-toggle-invert').addEventListener('click', () => toggleInvertTurning());
+
+            document.getElementById('btn-menu-reinit-cam').addEventListener('click', () => {
+                initMediaPipePose();
+            });
+
+            // Header & PIP Buttons
+            document.getElementById('btn-hud-toggle-invert').addEventListener('click', () => toggleInvertTurning());
+            document.getElementById('pip-flip-btn').addEventListener('click', () => toggleInvertTurning());
+            document.getElementById('settings-flip-btn').addEventListener('click', () => toggleInvertTurning());
+
+            document.getElementById('pip-mirror-btn').addEventListener('click', () => toggleMirrorCamera());
+            document.getElementById('settings-mirror-btn').addEventListener('click', () => toggleMirrorCamera());
+
+            document.getElementById('btn-hud-calibrate').addEventListener('click', () => calibrateNeutralPose());
+            document.getElementById('btn-pip-calibrate').addEventListener('click', () => calibrateNeutralPose());
+            document.getElementById('btn-settings-calibrate').addEventListener('click', () => calibrateNeutralPose());
+
+            document.getElementById('btn-hud-cam').addEventListener('click', () => {
+                const pip = document.getElementById('webcam-pip');
+                pip.classList.toggle('scale-0');
+                pip.classList.toggle('opacity-0');
+            });
+
+            document.getElementById('btn-close-pip').addEventListener('click', () => {
+                document.getElementById('webcam-pip').classList.add('scale-0', 'opacity-0');
+            });
+
+            document.getElementById('btn-sim-pose').addEventListener('click', () => {
+                STATE.simMode = !STATE.simMode;
+                const btn = document.getElementById('btn-sim-pose');
+                btn.classList.toggle('bg-emerald-400');
+                showToast(STATE.simMode ? "SIM MODE ACTIVE" : "SIM MODE OFF", 2000);
+            });
+
+            document.getElementById('btn-hud-audio').addEventListener('click', () => {
+                const muted = sound.toggleMute();
+                const icon = document.getElementById('audio-icon');
+                icon.className = muted ? "fa-solid fa-volume-xmark text-slate-400" : "fa-solid fa-volume-high text-amber-500";
+            });
+
+            const settingsDrawer = document.getElementById('settings-drawer');
+            document.getElementById('btn-hud-settings').addEventListener('click', () => {
+                settingsDrawer.classList.remove('translate-x-full');
+            });
+
+            document.getElementById('btn-close-settings').addEventListener('click', () => {
+                settingsDrawer.classList.add('translate-x-full');
+            });
+
+            document.getElementById('btn-save-settings').addEventListener('click', () => {
+                settingsDrawer.classList.add('translate-x-full');
+            });
+
+            document.getElementById('btn-hud-help').addEventListener('click', () => {
+                document.getElementById('help-modal').classList.remove('hidden');
+            });
+
+            document.getElementById('btn-close-help').addEventListener('click', () => {
+                document.getElementById('help-modal').classList.add('hidden');
+            });
+
+            // Sliders
+            document.getElementById('slider-flap-sens').addEventListener('input', (e) => {
+                CONFIG.flapSensitivity = parseFloat(e.target.value);
+                document.getElementById('val-flap-sens').innerText = e.target.value;
+            });
+
+            document.getElementById('slider-turn-sens').addEventListener('input', (e) => {
+                CONFIG.turnSensitivity = parseFloat(e.target.value);
+                document.getElementById('val-turn-sens').innerText = e.target.value;
+            });
+
+            document.getElementById('slider-cam-dist').addEventListener('input', (e) => {
+                CONFIG.cameraDistance = parseFloat(e.target.value);
+                document.getElementById('val-cam-dist').innerText = e.target.value;
+            });
+
+            document.getElementById('btn-reset-rings').addEventListener('click', () => {
+                STATE.ringsCollected = 0;
+                spawnRingCourse();
+                showToast("Flight Rings Respawned!", 2000);
+            });
+
+            // Keyboard Controls
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !e.repeat) {
+                    sound.init();
+                    triggerFlapGesture(1.5);
+                }
+                if (STATE.keys.hasOwnProperty(e.code)) {
+                    STATE.keys[e.code] = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (STATE.keys.hasOwnProperty(e.code)) {
+                    STATE.keys[e.code] = false;
+                }
+            });
+        }
+    </script>
+
+    <script>
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updateGameLoop();
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.onload = function() {
+            initThreeJS();
+            setupEventListeners();
+            animate();
+
+            // Auto-initialize webcam and MediaPipe pose tracking immediately on load!
+            initMediaPipePose();
+        };
+    </script>
+</body>
+</html>
